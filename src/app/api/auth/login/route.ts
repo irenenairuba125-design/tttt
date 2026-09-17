@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { createSession } from "@/lib/auth";
+import { createSession, type SessionPayload } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid phone or password" }, { status: 401 });
   }
 
-  await createSession({ userId: user.id, role: user.role, name: user.name });
+  await createSession({ userId: user.id, role: user.role as SessionPayload["role"], name: user.name });
 
   return NextResponse.json({ id: user.id, name: user.name, role: user.role });
 }
