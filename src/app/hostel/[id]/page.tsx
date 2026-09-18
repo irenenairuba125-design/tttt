@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import RoomBookButton from "@/components/RoomBookButton";
 import ReviewForm from "@/components/ReviewForm";
+import IssueForm from "@/components/IssueForm";
 
 const TYPE_BADGE: Record<string, string> = {
   girls_only: "bg-pink-50 text-pink-700 ring-pink-200",
@@ -227,6 +228,7 @@ export default async function HostelDetailPage({
               <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
                 A UGX 50,000 booking fee reserves your room for 48 hours while you arrange move-in.
               </div>
+              {canReview && <IssueForm hostelId={hostel.id} />}
             </div>
           </div>
         </div>
