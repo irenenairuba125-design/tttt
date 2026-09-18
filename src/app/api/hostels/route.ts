@@ -9,15 +9,14 @@ export async function GET(req: NextRequest) {
   const maxPrice = searchParams.get("max_price");
   const roomType = searchParams.get("room_type") as RoomType | null;
 
-  if (!universityId) {
-    return NextResponse.json({ error: "university_id is required" }, { status: 400 });
-  }
-
-  let filtered = hostels.filter((h) => h.universityId === universityId && h.status === "approved");
+  let filtered = hostels.filter((h) => h.status === "approved");
+  if (universityId) filtered = filtered.filter((h) => h.universityId === universityId);
 
   if (type) filtered = filtered.filter((h) => h.type === type);
-  if (minPrice) filtered = filtered.filter((h) => h.priceRangeMin >= Number(minPrice));
-  if (maxPrice) filtered = filtered.filter((h) => h.priceRangeMax <= Number(maxPrice));
+  // A hostel "matches" a price cap if any part of its price range falls at or below it,
+  // so budget-conscious students still see hostels that have some rooms in range.
+  if (minPrice) filtered = filtered.filter((h) => h.priceRangeMax >= Number(minPrice));
+  if (maxPrice) filtered = filtered.filter((h) => h.priceRangeMin <= Number(maxPrice));
   if (roomType) {
     filtered = filtered.filter((h) => rooms.some((r) => r.hostelId === h.id && r.roomType === roomType));
   }

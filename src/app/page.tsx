@@ -24,13 +24,26 @@ export default async function Home() {
             Browse verified hostels around your university, filter by gender and price, and reserve
             your room in minutes via MTN MoMo.
           </p>
+          <Link
+            href="/hostels"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-teal-800 shadow-sm transition hover:bg-teal-50"
+          >
+            View all available hostels
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </Link>
         </div>
       </section>
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <h2 className="text-xl font-bold text-slate-900">Choose your university</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Select where you study to see nearby hostels on the map.
+          Select where you study to see nearby hostels on the map, or{" "}
+          <Link href="/hostels" className="font-medium text-teal-700 hover:underline">
+            browse every hostel with filters
+          </Link>
+          .
         </p>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">

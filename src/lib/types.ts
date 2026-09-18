@@ -1,5 +1,6 @@
 export type HostelListItem = {
   id: string;
+  universityId: string;
   hostelName: string;
   type: "girls_only" | "boys_only" | "mixed";
   locationLat: number;

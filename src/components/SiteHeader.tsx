@@ -54,6 +54,12 @@ export default function SiteHeader() {
         ) : session ? (
           <nav className="flex items-center gap-1 text-sm font-medium">
             <a
+              href="/hostels"
+              className="rounded-lg px-3.5 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              Browse Hostels
+            </a>
+            <a
               href="/bookings"
               className="rounded-lg px-3.5 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
             >
@@ -85,6 +91,12 @@ export default function SiteHeader() {
           </nav>
         ) : (
           <nav className="flex items-center gap-2 text-sm font-medium">
+            <a
+              href="/hostels"
+              className="rounded-lg px-3.5 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              Browse Hostels
+            </a>
             <a
               href="/login"
               className="rounded-lg px-3.5 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
