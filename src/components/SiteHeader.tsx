@@ -65,6 +65,14 @@ export default function SiteHeader() {
             >
               My Bookings
             </a>
+            {session.role === "super_admin" && (
+              <a
+                href="/admin"
+                className="rounded-lg px-3.5 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                Admin
+              </a>
+            )}
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
