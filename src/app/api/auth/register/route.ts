@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
-import { findUserByPhone, registeredUsers, genId, type DemoUser } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, phone, password, gender } = body;
+  const { name, phone, email, password, gender } = body;
 
   if (!name || !phone || !password) {
     return NextResponse.json(
@@ -13,19 +14,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (findUserByPhone(phone)) {
+  const existing = await prisma.user.findUnique({ where: { phone } });
+  if (existing) {
     return NextResponse.json({ error: "Phone number already registered" }, { status: 409 });
   }
 
-  const user: DemoUser = {
-    id: genId("user"),
-    name,
-    phone,
-    password,
-    role: "student",
-    gender: gender || undefined,
-  };
-  registeredUsers.push(user);
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({
+    data: {
+      name,
+      phone,
+      email: email || null,
+      passwordHash,
+      role: "student",
+      gender: gender || null,
+    },
+  });
 
   await createSession({ userId: user.id, role: user.role, name: user.name });
 

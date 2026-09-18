@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hostels, rooms, amenities, reviews, type RoomType, type HostelType } from "@/lib/store";
+import { Prisma, RoomType, HostelType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,30 +10,26 @@ export async function GET(req: NextRequest) {
   const maxPrice = searchParams.get("max_price");
   const roomType = searchParams.get("room_type") as RoomType | null;
 
-  let filtered = hostels.filter((h) => h.status === "approved");
-  if (universityId) filtered = filtered.filter((h) => h.universityId === universityId);
-
-  if (type) filtered = filtered.filter((h) => h.type === type);
-  // A hostel "matches" a price cap if any part of its price range falls at or below it,
+  const where: Prisma.HostelWhereInput = { status: "approved" };
+  if (universityId) where.universityId = universityId;
+  if (type) where.type = type;
+  // A hostel "matches" a price range if any part of its price range overlaps it,
   // so budget-conscious students still see hostels that have some rooms in range.
-  if (minPrice) filtered = filtered.filter((h) => h.priceRangeMax >= Number(minPrice));
-  if (maxPrice) filtered = filtered.filter((h) => h.priceRangeMin <= Number(maxPrice));
-  if (roomType) {
-    filtered = filtered.filter((h) => rooms.some((r) => r.hostelId === h.id && r.roomType === roomType));
-  }
+  if (minPrice) where.priceRangeMax = { gte: Number(minPrice) };
+  if (maxPrice) where.priceRangeMin = { lte: Number(maxPrice) };
+  if (roomType) where.rooms = { some: { roomType } };
 
-  const result = filtered
-    .sort((a, b) => b.rating - a.rating)
-    .map((h) => ({
-      ...h,
-      caretakerPhone: undefined,
-      rooms: rooms.filter((r) => r.hostelId === h.id),
-      amenities: h.amenityIds.map((amenityId) => ({
-        amenityId,
-        amenity: amenities.find((a) => a.id === amenityId)!,
-      })),
-      _count: { reviews: reviews.filter((r) => r.hostelId === h.id).length },
-    }));
+  const hostels = await prisma.hostel.findMany({
+    where,
+    include: {
+      rooms: true,
+      amenities: { include: { amenity: true } },
+      _count: { select: { reviews: true } },
+    },
+    orderBy: { rating: "desc" },
+  });
+
+  const result = hostels.map((h) => ({ ...h, caretakerPhone: undefined }));
 
   return NextResponse.json(result);
 }

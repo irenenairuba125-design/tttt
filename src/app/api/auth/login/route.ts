@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
-import { findUserByPhone } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -10,8 +11,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "phone and password are required" }, { status: 400 });
   }
 
-  const user = findUserByPhone(phone);
-  if (!user || user.password !== password) {
+  const user = await prisma.user.findUnique({ where: { phone } });
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid phone or password" }, { status: 401 });
   }
 

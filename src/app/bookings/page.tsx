@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { bookings as allBookings, hostels, rooms } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -17,14 +17,11 @@ export default async function MyBookingsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const bookings = allBookings
-    .filter((b) => b.studentId === session.userId)
-    .sort((a, b) => b.bookingDate.getTime() - a.bookingDate.getTime())
-    .map((b) => ({
-      ...b,
-      hostel: hostels.find((h) => h.id === b.hostelId)!,
-      room: rooms.find((r) => r.id === b.roomId)!,
-    }));
+  const bookings = await prisma.booking.findMany({
+    where: { studentId: session.userId },
+    include: { hostel: true, room: true },
+    orderBy: { bookingDate: "desc" },
+  });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">

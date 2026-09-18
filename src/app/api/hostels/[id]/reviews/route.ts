@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { bookings, reviews, recomputeHostelRating, genId } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
@@ -18,12 +18,13 @@ export async function POST(
     return NextResponse.json({ error: "rating must be between 1 and 5" }, { status: 400 });
   }
 
-  const hasStayed = bookings.some(
-    (b) =>
-      b.hostelId === hostelId &&
-      b.studentId === session.userId &&
-      ["paid", "reserved", "checked_in", "checked_out"].includes(b.status)
-  );
+  const hasStayed = await prisma.booking.findFirst({
+    where: {
+      hostelId,
+      studentId: session.userId,
+      status: { in: ["paid", "reserved", "checked_in", "checked_out"] },
+    },
+  });
 
   if (!hasStayed) {
     return NextResponse.json(
@@ -32,17 +33,15 @@ export async function POST(
     );
   }
 
-  const review = {
-    id: genId("review"),
-    hostelId,
-    studentId: session.userId,
-    studentName: session.name,
-    rating,
-    comment: comment || null,
-    createdAt: new Date(),
-  };
-  reviews.push(review);
-  recomputeHostelRating(hostelId);
+  const review = await prisma.review.create({
+    data: { hostelId, studentId: session.userId, rating, comment: comment || null },
+  });
+
+  const agg = await prisma.review.aggregate({ where: { hostelId }, _avg: { rating: true } });
+  await prisma.hostel.update({
+    where: { id: hostelId },
+    data: { rating: agg._avg.rating ?? rating },
+  });
 
   return NextResponse.json(review, { status: 201 });
 }

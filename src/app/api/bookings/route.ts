@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { rooms, hostels, bookings, genId } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 const BOOKING_FEE = 50000;
 
@@ -15,10 +15,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "roomId is required" }, { status: 400 });
   }
 
-  const room = rooms.find((r) => r.id === roomId);
-  const hostel = room ? hostels.find((h) => h.id === room.hostelId) : undefined;
+  const room = await prisma.room.findUnique({ where: { id: roomId }, include: { hostel: true } });
 
-  if (!room || !hostel || hostel.status !== "approved") {
+  if (!room || room.hostel.status !== "approved") {
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
@@ -26,17 +25,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No beds available in this room" }, { status: 409 });
   }
 
-  const booking = {
-    id: genId("booking"),
-    studentId: session.userId,
-    roomId: room.id,
-    hostelId: room.hostelId,
-    bookingDate: new Date(),
-    status: "pending" as const,
-    bookingFeeAmount: BOOKING_FEE,
-    reservedUntil: null,
-  };
-  bookings.push(booking);
+  const booking = await prisma.booking.create({
+    data: {
+      studentId: session.userId,
+      roomId: room.id,
+      hostelId: room.hostelId,
+      status: "pending",
+      bookingFeeAmount: BOOKING_FEE,
+    },
+  });
 
   return NextResponse.json(booking, { status: 201 });
 }
@@ -47,14 +44,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const mine = bookings
-    .filter((b) => b.studentId === session.userId)
-    .sort((a, b) => b.bookingDate.getTime() - a.bookingDate.getTime())
-    .map((b) => ({
-      ...b,
-      hostel: hostels.find((h) => h.id === b.hostelId),
-      room: rooms.find((r) => r.id === b.roomId),
-    }));
+  const bookings = await prisma.booking.findMany({
+    where: { studentId: session.userId },
+    include: { hostel: true, room: true, payments: true },
+    orderBy: { bookingDate: "desc" },
+  });
 
-  return NextResponse.json(mine);
+  return NextResponse.json(bookings);
 }

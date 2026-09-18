@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { universities } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 import UniversityExplorer from "@/components/UniversityExplorer";
 
 export default async function UniversityPage({
@@ -9,7 +9,7 @@ export default async function UniversityPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const university = universities.find((u) => u.id === id);
+  const university = await prisma.university.findUnique({ where: { id } });
 
   if (!university) notFound();
 

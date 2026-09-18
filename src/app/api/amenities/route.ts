@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { amenities } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  return NextResponse.json([...amenities].sort((a, b) => a.name.localeCompare(b.name)));
+  const amenities = await prisma.amenity.findMany({ orderBy: { name: "asc" } });
+  return NextResponse.json(amenities);
 }

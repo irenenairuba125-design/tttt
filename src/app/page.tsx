@@ -1,13 +1,16 @@
 import Link from "next/link";
-import { universities as allUniversities, hostels } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
+
+// Needs a live DB connection to read universities, so defer the query to
+// request time instead of Next.js trying to prerender this at build time
+// (see "Fix Vercel build failing without DATABASE_URL" in git history).
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const universities = [...allUniversities]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((u) => ({
-      ...u,
-      _count: { hostels: hostels.filter((h) => h.universityId === u.id && h.status === "approved").length },
-    }));
+  const universities = await prisma.university.findMany({
+    orderBy: { name: "asc" },
+    include: { _count: { select: { hostels: { where: { status: "approved" } } } } },
+  });
 
   return (
     <div>

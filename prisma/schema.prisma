@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Supabase's connection pooler (pgbouncer, port 6543) can't run schema
+// migrations, so `url` (used at runtime) points at the pooler and
+// `directUrl` (used only by `prisma migrate`/`db push`) points at the
+// direct connection (port 5432). Both come from Project Settings ->
+// Database in the Supabase dashboard.
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  super_admin
+  hostel_owner
+  student
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum HostelType {
+  girls_only
+  boys_only
+  mixed
+}
+
+enum HostelStatus {
+  pending
+  approved
+  rejected
+}
+
+enum RoomType {
+  single
+  double
+  triple
+}
+
+enum RoomStatus {
+  available
+  full
+  reserved
+}
+
+enum BookingStatus {
+  pending
+  paid
+  reserved
+  checked_in
+  checked_out
+  cancelled
+  expired
+}
+
+enum PaymentProvider {
+  MTN
+  Airtel
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+}
+
+enum PaymentType {
+  booking_fee
+  rent
+}
+
+enum IssueStatus {
+  open
+  resolved
+}
+
+model University {
+  id        String   @id @default(cuid())
+  name      String
+  mainLat   Float    @map("main_lat")
+  mainLng   Float    @map("main_lng")
+  district  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  hostels Hostel[]
+
+  @@map("universities")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(student)
+  gender       Gender?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ownedHostels Hostel[]  @relation("HostelOwner")
+  bookings     Booking[]
+  payments     Payment[]
+  reviews      Review[]
+  issues       Issue[]
+
+  @@map("users")
+}
+
+model Hostel {
+  id                String       @id @default(cuid())
+  ownerId           String       @map("owner_id")
+  universityId      String       @map("university_id")
+  hostelName        String       @map("hostel_name")
+  type              HostelType
+  locationLat       Float        @map("location_lat")
+  locationLng       Float        @map("location_lng")
+  distanceFromGateM Int?         @map("distance_from_gate_m")
+  addressText       String?      @map("address_text")
+  description       String?
+  rules             String?
+  caretakerPhone    String       @map("caretaker_phone")
+  priceRangeMin     Int          @map("price_range_min")
+  priceRangeMax     Int          @map("price_range_max")
+  rating            Float        @default(0)
+  status            HostelStatus @default(pending)
+  photos            String[]     @default([])
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  owner      User            @relation("HostelOwner", fields: [ownerId], references: [id])
+  university University      @relation(fields: [universityId], references: [id])
+  rooms      Room[]
+  bookings   Booking[]
+  amenities  HostelAmenity[]
+  reviews    Review[]
+  issues     Issue[]
+
+  @@map("hostels")
+}
+
+model Room {
+  id               String     @id @default(cuid())
+  hostelId         String     @map("hostel_id")
+  roomNo           String     @map("room_no")
+  roomType         RoomType   @map("room_type")
+  pricePerSemester Int?       @map("price_per_semester")
+  pricePerMonth    Int?       @map("price_per_month")
+  totalBeds        Int        @map("total_beds")
+  bedsAvailable    Int        @map("beds_available")
+  status           RoomStatus @default(available)
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  hostel   Hostel    @relation(fields: [hostelId], references: [id])
+  bookings Booking[]
+
+  @@map("rooms")
+}
+
+model Booking {
+  id               String        @id @default(cuid())
+  studentId        String        @map("student_id")
+  roomId           String        @map("room_id")
+  hostelId         String        @map("hostel_id")
+  bookingDate      DateTime      @default(now()) @map("booking_date")
+  status           BookingStatus @default(pending)
+  bookingFeeAmount Int           @map("booking_fee_amount")
+  reservedUntil    DateTime?     @map("reserved_until")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  student  User      @relation(fields: [studentId], references: [id])
+  room     Room      @relation(fields: [roomId], references: [id])
+  hostel   Hostel    @relation(fields: [hostelId], references: [id])
+  payments Payment[]
+
+  @@map("bookings")
+}
+
+model Payment {
+  id          String          @id @default(cuid())
+  bookingId   String          @map("booking_id")
+  studentId   String          @map("student_id")
+  amount      Int
+  momoTxnId   String?         @map("momo_txn_id")
+  provider    PaymentProvider @default(MTN)
+  status      PaymentStatus   @default(pending)
+  paymentType PaymentType     @default(booking_fee) @map("payment_type")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+  student User    @relation(fields: [studentId], references: [id])
+
+  @@map("payments")
+}
+
+model Amenity {
+  id   String @id @default(cuid())
+  name String @unique
+
+  hostels HostelAmenity[]
+
+  @@map("amenities")
+}
+
+model HostelAmenity {
+  hostelId  String @map("hostel_id")
+  amenityId String @map("amenity_id")
+
+  hostel  Hostel  @relation(fields: [hostelId], references: [id])
+  amenity Amenity @relation(fields: [amenityId], references: [id])
+
+  @@id([hostelId, amenityId])
+  @@map("hostel_amenity")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  studentId String   @map("student_id")
+  hostelId  String   @map("hostel_id")
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student User   @relation(fields: [studentId], references: [id])
+  hostel  Hostel @relation(fields: [hostelId], references: [id])
+
+  @@map("reviews")
+}
+
+model Issue {
+  id          String      @id @default(cuid())
+  studentId   String      @map("student_id")
+  hostelId    String      @map("hostel_id")
+  description String
+  status      IssueStatus @default(open)
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  student User   @relation(fields: [studentId], references: [id])
+  hostel  Hostel @relation(fields: [hostelId], references: [id])
+
+  @@map("issues")
+}

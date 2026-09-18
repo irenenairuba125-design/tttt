@@ -1,134 +1,13 @@
-// In-memory demo data store. Replaces the Prisma/database layer entirely so
-// the app runs with zero external dependencies (no Postgres/SQLite needed).
-//
-// Trade-off: writes (bookings, payments, reviews, issues, new accounts) live
-// only in this Node process's memory. They work reliably in local dev and
-// within a single warm serverless instance, but won't survive a redeploy or
-// necessarily show up on a different serverless instance. Good enough for a
-// demo; swap back to a real database (see git history) for production use.
+import { PrismaClient, HostelType, RoomType } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
-export type Role = "super_admin" | "hostel_owner" | "student";
-export type HostelType = "girls_only" | "boys_only" | "mixed";
-export type RoomType = "single" | "double" | "triple";
-export type BookingStatus =
-  | "pending"
-  | "paid"
-  | "reserved"
-  | "checked_in"
-  | "checked_out"
-  | "cancelled"
-  | "expired";
+const prisma = new PrismaClient();
 
-export interface DemoUser {
-  id: string;
-  name: string;
-  phone: string;
-  password: string;
-  role: Role;
-  gender?: "male" | "female" | "other";
+function photosFor(slug: string, count = 3) {
+  return Array.from({ length: count }, (_, i) => `https://picsum.photos/seed/${slug}-${i + 1}/800/600`);
 }
 
-export interface University {
-  id: string;
-  name: string;
-  mainLat: number;
-  mainLng: number;
-  district: string;
-}
-
-export interface Amenity {
-  id: string;
-  name: string;
-}
-
-export interface Room {
-  id: string;
-  hostelId: string;
-  roomNo: string;
-  roomType: RoomType;
-  totalBeds: number;
-  bedsAvailable: number;
-  pricePerSemester: number | null;
-  pricePerMonth: number | null;
-  status: "available" | "full";
-}
-
-export interface Hostel {
-  id: string;
-  ownerId: string;
-  universityId: string;
-  hostelName: string;
-  type: HostelType;
-  locationLat: number;
-  locationLng: number;
-  distanceFromGateM: number | null;
-  addressText: string | null;
-  description: string | null;
-  rules: string | null;
-  caretakerPhone: string;
-  priceRangeMin: number;
-  priceRangeMax: number;
-  rating: number;
-  status: "pending" | "approved" | "rejected";
-  photos: string[];
-  amenityIds: string[];
-}
-
-export interface Review {
-  id: string;
-  studentId: string;
-  studentName: string;
-  hostelId: string;
-  rating: number;
-  comment: string | null;
-  createdAt: Date;
-}
-
-export interface Issue {
-  id: string;
-  studentId: string;
-  hostelId: string;
-  description: string;
-  status: "open" | "resolved";
-  createdAt: Date;
-}
-
-export interface Booking {
-  id: string;
-  studentId: string;
-  roomId: string;
-  hostelId: string;
-  bookingDate: Date;
-  status: BookingStatus;
-  bookingFeeAmount: number;
-  reservedUntil: Date | null;
-}
-
-export interface Payment {
-  id: string;
-  bookingId: string;
-  studentId: string;
-  amount: number;
-  momoTxnId: string;
-  provider: "MTN" | "Airtel";
-  status: "success";
-  paymentType: "booking_fee";
-  createdAt: Date;
-}
-
-let idCounter = 0;
-export function genId(prefix: string) {
-  idCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}${idCounter.toString(36)}`;
-}
-
-export const DEMO_USERS: DemoUser[] = [
-  { id: "user-admin", name: "Super Admin", phone: "0700000000", password: "password123", role: "super_admin" },
-  { id: "user-owner", name: "John Custodian", phone: "0700000001", password: "password123", role: "hostel_owner" },
-  { id: "user-student", name: "Jane Student", phone: "0700000002", password: "password123", role: "student", gender: "female" },
-];
-
-export const universities: University[] = [
+const universitySeeds = [
   { id: "uni-makerere", name: "Makerere University", mainLat: 0.3354, mainLng: 32.5695, district: "Kampala" },
   { id: "uni-kyambogo", name: "Kyambogo University", mainLat: 0.3617, mainLng: 32.6234, district: "Kampala" },
   { id: "uni-mubs", name: "Makerere University Business School (MUBS)", mainLat: 0.3298, mainLng: 32.6198, district: "Kampala" },
@@ -136,23 +15,7 @@ export const universities: University[] = [
   { id: "uni-miu", name: "Metropolitan International University (MIU)", mainLat: -1.286, mainLng: 29.685, district: "Kisoro" },
 ];
 
-export const amenities: Amenity[] = [
-  "WiFi",
-  "Water",
-  "Parking",
-  "Security",
-  "Generator",
-  "Reading Room",
-  "Kitchen",
-].map((name) => ({ id: `amenity-${name.toLowerCase().replace(/\s+/g, "-")}`, name }));
-
-function amenityIdsFor(names: string[]) {
-  return names.map((name) => amenities.find((a) => a.name === name)!.id);
-}
-
-function photosFor(slug: string, count = 3) {
-  return Array.from({ length: count }, (_, i) => `https://picsum.photos/seed/${slug}-${i + 1}/800/600`);
-}
+const amenityNames = ["WiFi", "Water", "Parking", "Security", "Generator", "Reading Room", "Kitchen"];
 
 type HostelSeed = {
   id: string;
@@ -365,92 +228,120 @@ const hostelSeeds: HostelSeed[] = [
   },
 ];
 
-const initialHostels: Hostel[] = hostelSeeds.map((seed) => {
-  const uni = universities.find((u) => u.id === seed.universityId)!;
-  return {
-    id: seed.id,
-    ownerId: "user-owner",
-    universityId: seed.universityId,
-    hostelName: seed.hostelName,
-    type: seed.type,
-    locationLat: uni.mainLat + seed.latOffset,
-    locationLng: uni.mainLng + seed.lngOffset,
-    distanceFromGateM: seed.distanceFromGateM,
-    addressText: `${seed.distanceFromGateM}m from ${uni.name} main gate`,
-    description: seed.description,
-    rules: seed.rules,
-    caretakerPhone: seed.caretakerPhone,
-    priceRangeMin: seed.priceRangeMin,
-    priceRangeMax: seed.priceRangeMax,
-    rating: 0,
-    status: "approved",
-    photos: photosFor(seed.id),
-    amenityIds: amenityIdsFor(seed.amenityNames),
-  };
-});
+async function main() {
+  console.log("Seeding universities...");
+  for (const uni of universitySeeds) {
+    await prisma.university.upsert({
+      where: { id: uni.id },
+      update: uni,
+      create: uni,
+    });
+  }
 
-const initialRooms: Room[] = hostelSeeds.flatMap((seed) =>
-  seed.rooms.map((r) => ({
-    id: `room-${seed.id}-${r.roomNo.toLowerCase()}`,
-    hostelId: seed.id,
-    roomNo: r.roomNo,
-    roomType: r.roomType,
-    totalBeds: r.totalBeds,
-    bedsAvailable: r.totalBeds,
-    pricePerSemester: r.pricePerSemester,
-    pricePerMonth: r.pricePerMonth,
-    status: "available" as const,
-  }))
-);
+  console.log("Seeding amenities...");
+  const amenityByName = new Map<string, string>();
+  for (const name of amenityNames) {
+    const amenity = await prisma.amenity.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    amenityByName.set(name, amenity.id);
+  }
 
-// Next.js's dev bundler (and, on Vercel, separate serverless functions) can
-// give API routes and page components their own module instances, so plain
-// `export const` arrays don't reliably share mutations between them. Pinning
-// the mutable state to `globalThis` forces every module instance within the
-// same process to read/write the exact same objects — the same trick
-// `src/lib/prisma.ts` used to use for its client singleton.
-type Store = {
-  hostels: Hostel[];
-  rooms: Room[];
-  reviews: Review[];
-  issues: Issue[];
-  bookings: Booking[];
-  payments: Payment[];
-  registeredUsers: DemoUser[];
-};
-
-const globalForStore = globalThis as unknown as { __hostelStore?: Store };
-
-const store: Store =
-  globalForStore.__hostelStore ??
-  (globalForStore.__hostelStore = {
-    hostels: initialHostels,
-    rooms: initialRooms,
-    reviews: [],
-    issues: [],
-    bookings: [],
-    payments: [],
-    registeredUsers: [],
+  console.log("Seeding demo accounts...");
+  const passwordHash = await bcrypt.hash("password123", 10);
+  await prisma.user.upsert({
+    where: { phone: "0700000000" },
+    update: {},
+    create: {
+      name: "Super Admin",
+      phone: "0700000000",
+      email: "admin@hostelfinder.ug",
+      passwordHash,
+      role: "super_admin",
+    },
+  });
+  const owner = await prisma.user.upsert({
+    where: { phone: "0700000001" },
+    update: {},
+    create: {
+      name: "John Custodian",
+      phone: "0700000001",
+      email: "owner@hostelfinder.ug",
+      passwordHash,
+      role: "hostel_owner",
+    },
+  });
+  await prisma.user.upsert({
+    where: { phone: "0700000002" },
+    update: {},
+    create: {
+      name: "Jane Student",
+      phone: "0700000002",
+      email: "student@hostelfinder.ug",
+      passwordHash,
+      role: "student",
+      gender: "female",
+    },
   });
 
-export const hostels = store.hostels;
-export const rooms = store.rooms;
-export const reviews = store.reviews;
-export const issues = store.issues;
-export const bookings = store.bookings;
-export const payments = store.payments;
-export const registeredUsers = store.registeredUsers;
+  console.log("Seeding hostels and rooms...");
+  for (const seed of hostelSeeds) {
+    const uni = universitySeeds.find((u) => u.id === seed.universityId)!;
+    const hostel = await prisma.hostel.upsert({
+      where: { id: seed.id },
+      update: {},
+      create: {
+        id: seed.id,
+        ownerId: owner.id,
+        universityId: seed.universityId,
+        hostelName: seed.hostelName,
+        type: seed.type,
+        locationLat: uni.mainLat + seed.latOffset,
+        locationLng: uni.mainLng + seed.lngOffset,
+        distanceFromGateM: seed.distanceFromGateM,
+        addressText: `${seed.distanceFromGateM}m from ${uni.name} main gate`,
+        description: seed.description,
+        rules: seed.rules,
+        caretakerPhone: seed.caretakerPhone,
+        priceRangeMin: seed.priceRangeMin,
+        priceRangeMax: seed.priceRangeMax,
+        status: "approved",
+        photos: photosFor(seed.id),
+        amenities: {
+          create: seed.amenityNames.map((name) => ({ amenityId: amenityByName.get(name)! })),
+        },
+      },
+    });
 
-export function findUserByPhone(phone: string): DemoUser | undefined {
-  return DEMO_USERS.find((u) => u.phone === phone) ?? registeredUsers.find((u) => u.phone === phone);
+    for (const room of seed.rooms) {
+      await prisma.room.upsert({
+        where: { id: `room-${seed.id}-${room.roomNo.toLowerCase()}` },
+        update: {},
+        create: {
+          id: `room-${seed.id}-${room.roomNo.toLowerCase()}`,
+          hostelId: hostel.id,
+          roomNo: room.roomNo,
+          roomType: room.roomType,
+          totalBeds: room.totalBeds,
+          bedsAvailable: room.totalBeds,
+          pricePerSemester: room.pricePerSemester,
+          pricePerMonth: room.pricePerMonth,
+          status: "available",
+        },
+      });
+    }
+  }
+
+  console.log("Seed complete.");
 }
 
-export function recomputeHostelRating(hostelId: string) {
-  const hostelReviews = reviews.filter((r) => r.hostelId === hostelId);
-  const hostel = hostels.find((h) => h.id === hostelId);
-  if (!hostel) return;
-  hostel.rating =
-    hostelReviews.length > 0
-      ? hostelReviews.reduce((sum, r) => sum + r.rating, 0) / hostelReviews.length
-      : 0;
-}
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

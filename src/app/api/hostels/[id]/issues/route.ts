@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { bookings, issues, genId } from "@/lib/store";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
@@ -18,12 +18,13 @@ export async function POST(
     return NextResponse.json({ error: "description is required" }, { status: 400 });
   }
 
-  const hasBooked = bookings.some(
-    (b) =>
-      b.hostelId === hostelId &&
-      b.studentId === session.userId &&
-      ["paid", "reserved", "checked_in", "checked_out"].includes(b.status)
-  );
+  const hasBooked = await prisma.booking.findFirst({
+    where: {
+      hostelId,
+      studentId: session.userId,
+      status: { in: ["paid", "reserved", "checked_in", "checked_out"] },
+    },
+  });
 
   if (!hasBooked) {
     return NextResponse.json(
@@ -32,15 +33,9 @@ export async function POST(
     );
   }
 
-  const issue = {
-    id: genId("issue"),
-    hostelId,
-    studentId: session.userId,
-    description: description.trim(),
-    status: "open" as const,
-    createdAt: new Date(),
-  };
-  issues.push(issue);
+  const issue = await prisma.issue.create({
+    data: { hostelId, studentId: session.userId, description: description.trim() },
+  });
 
   return NextResponse.json(issue, { status: 201 });
 }
