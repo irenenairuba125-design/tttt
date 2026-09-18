@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { hostels, rooms, amenities, reviews, bookings, universities } from "@/lib/store";
 import { getSession } from "@/lib/auth";
 import RoomBookButton from "@/components/RoomBookButton";
 import ReviewForm from "@/components/ReviewForm";
@@ -33,37 +33,41 @@ export default async function HostelDetailPage({
 }) {
   const { id } = await params;
 
-  const hostel = await prisma.hostel.findUnique({
-    where: { id },
-    include: {
-      rooms: { orderBy: { roomNo: "asc" } },
-      amenities: { include: { amenity: true } },
-      reviews: { include: { student: { select: { name: true } } }, orderBy: { createdAt: "desc" } },
-      university: true,
-    },
-  });
+  const hostelBase = hostels.find((h) => h.id === id);
+  if (!hostelBase || hostelBase.status !== "approved") notFound();
 
-  if (!hostel || hostel.status !== "approved") notFound();
+  const hostel = {
+    ...hostelBase,
+    rooms: rooms.filter((r) => r.hostelId === id).sort((a, b) => a.roomNo.localeCompare(b.roomNo)),
+    amenities: hostelBase.amenityIds.map((amenityId) => ({
+      amenityId,
+      amenity: amenities.find((a) => a.id === amenityId)!,
+    })),
+    reviews: reviews
+      .filter((r) => r.hostelId === id)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r, student: { name: r.studentName } })),
+    university: universities.find((u) => u.id === hostelBase.universityId)!,
+  };
 
   const session = await getSession();
   let caretakerPhone: string | null = null;
   let canReview = false;
 
   if (session) {
-    const unlockedBooking = await prisma.booking.findFirst({
-      where: {
-        hostelId: id,
-        studentId: session.userId,
-        status: { in: ["paid", "reserved", "checked_in", "checked_out"] },
-      },
-    });
+    const unlockedBooking = bookings.find(
+      (b) =>
+        b.hostelId === id &&
+        b.studentId === session.userId &&
+        ["paid", "reserved", "checked_in", "checked_out"].includes(b.status)
+    );
     if (unlockedBooking) {
       caretakerPhone = hostel.caretakerPhone;
       canReview = true;
     }
   }
 
-  const photos = hostel.photos as string[];
+  const photos = hostel.photos;
   const avgRating =
     hostel.reviews.length > 0
       ? hostel.reviews.reduce((s, r) => s + r.rating, 0) / hostel.reviews.length

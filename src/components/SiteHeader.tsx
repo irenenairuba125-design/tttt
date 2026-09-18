@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 
 type Session = { userId: string; role: string; name: string } | null;
 
@@ -38,7 +39,7 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-teal-600 to-teal-800 text-base font-bold text-white shadow-sm">
             H
           </span>
@@ -46,7 +47,7 @@ export default function SiteHeader() {
             Hostel<span className="text-teal-600">Finder</span>
             <span className="ml-1 text-xs font-semibold text-slate-400">UG</span>
           </span>
-        </a>
+        </Link>
 
         {!loaded ? (
           <div className="h-9 w-24 animate-pulse rounded-lg bg-slate-100" />

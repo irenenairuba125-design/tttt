@@ -1,58 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
-import type { Prisma } from "@prisma/client";
+import { hostels, rooms, amenities, reviews, type RoomType, type HostelType } from "@/lib/store";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const universityId = searchParams.get("university_id");
-  const type = searchParams.get("type");
+  const type = searchParams.get("type") as HostelType | null;
   const minPrice = searchParams.get("min_price");
   const maxPrice = searchParams.get("max_price");
-  const roomType = searchParams.get("room_type");
+  const roomType = searchParams.get("room_type") as RoomType | null;
 
   if (!universityId) {
     return NextResponse.json({ error: "university_id is required" }, { status: 400 });
   }
 
-  const where: Prisma.HostelWhereInput = {
-    universityId,
-    status: "approved",
-  };
+  let filtered = hostels.filter((h) => h.universityId === universityId && h.status === "approved");
 
-  if (type) where.type = type;
-
-  if (minPrice || maxPrice) {
-    where.priceRangeMin = minPrice ? { gte: Number(minPrice) } : undefined;
-    where.priceRangeMax = maxPrice ? { lte: Number(maxPrice) } : undefined;
-  }
-
+  if (type) filtered = filtered.filter((h) => h.type === type);
+  if (minPrice) filtered = filtered.filter((h) => h.priceRangeMin >= Number(minPrice));
+  if (maxPrice) filtered = filtered.filter((h) => h.priceRangeMax <= Number(maxPrice));
   if (roomType) {
-    where.rooms = { some: { roomType } };
+    filtered = filtered.filter((h) => rooms.some((r) => r.hostelId === h.id && r.roomType === roomType));
   }
 
-  const hostels = await prisma.hostel.findMany({
-    where,
-    include: {
-      rooms: true,
-      amenities: { include: { amenity: true } },
-      _count: { select: { reviews: true } },
-    },
-    orderBy: { rating: "desc" },
-  });
+  const result = filtered
+    .sort((a, b) => b.rating - a.rating)
+    .map((h) => ({
+      ...h,
+      caretakerPhone: undefined,
+      rooms: rooms.filter((r) => r.hostelId === h.id),
+      amenities: h.amenityIds.map((amenityId) => ({
+        amenityId,
+        amenity: amenities.find((a) => a.id === amenityId)!,
+      })),
+      _count: { reviews: reviews.filter((r) => r.hostelId === h.id).length },
+    }));
 
-  const session = await getSession();
-  if (session) {
-    await prisma.searchLog.create({
-      data: {
-        studentId: session.role === "student" ? session.userId : null,
-        universityId,
-        filterType: JSON.stringify({ type, minPrice, maxPrice, roomType }),
-      },
-    });
-  }
-
-  const sanitized = hostels.map((h) => ({ ...h, caretakerPhone: undefined }));
-
-  return NextResponse.json(sanitized);
+  return NextResponse.json(result);
 }

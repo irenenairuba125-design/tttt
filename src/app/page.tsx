@@ -1,17 +1,13 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-
-// Query the database at request time, not at build time — this page has no
-// dynamic API usage of its own, so without this Next.js tries to prerender
-// it statically during the build, which requires a live DATABASE_URL to be
-// present in the build environment.
-export const dynamic = "force-dynamic";
+import { universities as allUniversities, hostels } from "@/lib/store";
 
 export default async function Home() {
-  const universities = await prisma.university.findMany({
-    orderBy: { name: "asc" },
-    include: { _count: { select: { hostels: true } } },
-  });
+  const universities = [...allUniversities]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((u) => ({
+      ...u,
+      _count: { hostels: hostels.filter((h) => h.universityId === u.id && h.status === "approved").length },
+    }));
 
   return (
     <div>
@@ -70,12 +66,6 @@ export default async function Home() {
             </Link>
           ))}
         </div>
-
-        {universities.length === 0 && (
-          <p className="mt-8 text-slate-500">
-            No universities yet. Run <code className="rounded bg-slate-100 px-1">npx prisma db seed</code> to load sample data.
-          </p>
-        )}
       </div>
     </div>
   );

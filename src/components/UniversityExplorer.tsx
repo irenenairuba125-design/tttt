@@ -56,7 +56,7 @@ export default function UniversityExplorer({
     maxPrice: "",
   });
   const [hostels, setHostels] = useState<HostelListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ university_id: universityId });
@@ -67,12 +67,20 @@ export default function UniversityExplorer({
     return params.toString();
   }, [universityId, filters]);
 
+  const loading = loadedQuery !== query;
+
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     fetch(`/api/hostels?${query}`)
       .then((r) => r.json())
-      .then((data) => setHostels(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (cancelled) return;
+        setHostels(Array.isArray(data) ? data : []);
+        setLoadedQuery(query);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [query]);
 
   return (

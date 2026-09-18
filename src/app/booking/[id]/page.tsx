@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { bookings, hostels, rooms, payments } from "@/lib/store";
 import { getSession } from "@/lib/auth";
 import PayMomoButton from "@/components/PayMomoButton";
 
@@ -12,16 +12,20 @@ export default async function BookingPage({
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const booking = await prisma.booking.findUnique({
-    where: { id },
-    include: { hostel: true, room: true, payments: true },
-  });
+  const bookingBase = bookings.find((b) => b.id === id);
 
-  if (!booking || booking.studentId !== session.userId) notFound();
+  if (!bookingBase || bookingBase.studentId !== session.userId) notFound();
+
+  const booking = {
+    ...bookingBase,
+    hostel: hostels.find((h) => h.id === bookingBase.hostelId)!,
+    room: rooms.find((r) => r.id === bookingBase.roomId)!,
+    payments: payments.filter((p) => p.bookingId === bookingBase.id),
+  };
 
   const unlocked = ["paid", "reserved", "checked_in"].includes(booking.status);
   const successfulPayment = booking.payments.find((p) => p.status === "success");
-  const photo = (booking.hostel.photos as string[])[0];
+  const photo = booking.hostel.photos[0];
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-slate-50 px-4 py-12">

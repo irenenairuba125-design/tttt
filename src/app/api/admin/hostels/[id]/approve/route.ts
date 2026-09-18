@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { hostels } from "@/lib/store";
 
 export async function POST(
   req: NextRequest,
@@ -12,10 +12,11 @@ export async function POST(
   }
 
   const { id } = await params;
-  const hostel = await prisma.hostel.update({
-    where: { id },
-    data: { status: "approved" },
-  });
+  const hostel = hostels.find((h) => h.id === id);
+  if (!hostel) {
+    return NextResponse.json({ error: "Hostel not found" }, { status: 404 });
+  }
 
+  hostel.status = "approved";
   return NextResponse.json(hostel);
 }
