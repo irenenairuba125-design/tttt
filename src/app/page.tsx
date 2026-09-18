@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+// Query the database at request time, not at build time — this page has no
+// dynamic API usage of its own, so without this Next.js tries to prerender
+// it statically during the build, which requires a live DATABASE_URL to be
+// present in the build environment.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const universities = await prisma.university.findMany({
     orderBy: { name: "asc" },
